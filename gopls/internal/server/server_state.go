@@ -23,7 +23,7 @@ import (
 // (also when folders are added), and "ready" otherwise. gopls reloads
 // packages lazily and synchronously within each request (Snapshot.awaitLoaded),
 // so a request answered while "ready" is complete and reflects every change
-// the client has sent: the server declares completeness and freshness.
+// the client has sent: the server declares coverage and freshness.
 //
 // health is "error" while the last load of a folder failed or while a
 // critical workspace load error is shown ("Error loading workspace"), and
@@ -42,7 +42,7 @@ type serverStateProtocol struct {
 
 // serverStateCapability is the experimental server capability declared in
 // the InitializeResult.
-var serverStateCapability = map[string]bool{"completeness": true, "freshness": true}
+var serverStateCapability = map[string]bool{"coverage": true, "freshness": true}
 
 // clientWantsServerState reports whether the client declared
 // experimental.serverState in its capabilities.
