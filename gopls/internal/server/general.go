@@ -60,6 +60,7 @@ func (s *server) Initialize(ctx context.Context, params *protocol.ParamInitializ
 	s.stateMu.Unlock()
 
 	s.progress.SetSupportsWorkDoneProgress(params.Capabilities.Window.WorkDoneProgress)
+	s.serverState.clientWants = clientWantsServerState(params.Capabilities)
 
 	options := s.Options().Clone()
 	// TODO(rfindley): eliminate this defer.
@@ -253,6 +254,9 @@ func (s *server) Initialize(ctx context.Context, params *protocol.ParamInitializ
 				},
 			},
 			Experimental: map[string]any{
+				// serverStateProvider declares the server state protocol
+				// (experimental/serverState); see server_state.go.
+				"serverStateProvider": serverStateCapability,
 				// interactiveResolveProvider lists the LSP objects that support
 				// an interactive resolution stage. For instance, the presence of
 				// "command" indicates that the server handles "command/resolve"
@@ -427,13 +431,16 @@ func (s *server) addFolders(ctx context.Context, folders []protocol.WorkspaceFol
 			continue
 		}
 		work := s.progress.Start(ctx, "Setting up workspace", "Loading packages...", nil, nil)
+		s.serverState.beginFolderLoad(ctx, s.client, uri)
 		snapshot, release, err := s.addView(ctx, folder.Name, uri)
 		if err != nil {
 			if err == cache.ErrViewExists {
+				s.serverState.endFolderLoad(ctx, s.client, uri, "")
 				continue
 			}
 			viewErrors[folder.URI] = err
 			work.End(ctx, fmt.Sprintf("Error loading packages: %s", err))
+			s.serverState.endFolderLoad(ctx, s.client, uri, fmt.Sprintf("Error loading packages: %s", err))
 			continue
 		}
 		// Inv: release() must be called once.
@@ -444,6 +451,7 @@ func (s *server) addFolders(ctx context.Context, folders []protocol.WorkspaceFol
 		go func() {
 			snapshot.AwaitInitialized(ctx)
 			work.End(ctx, "Finished loading packages.")
+			s.serverState.endFolderLoad(ctx, s.client, uri, "")
 			nsnapshots.Done()
 			close(initialized) // signal
 		}()

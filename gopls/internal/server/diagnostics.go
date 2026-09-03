@@ -610,6 +610,8 @@ func (s *server) updateCriticalErrorStatus(ctx context.Context, snapshot *cache.
 		errMsg = strings.ReplaceAll(err.MainError.Error(), "\n", " ")
 	}
 
+	s.serverState.setCriticalError(ctx, s.client, errMsg)
+
 	if s.criticalErrorStatus == nil {
 		if errMsg != "" {
 			event.Error(ctx, "errors loading workspace", err.MainError, snapshot.Labels()...)

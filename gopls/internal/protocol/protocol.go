@@ -148,11 +148,50 @@ func ClientHandlerV2(client Client) jsonrpc2_v2.Handler {
 	})
 }
 
+// ServerState is the payload of the experimental/serverState request and of
+// the experimental/serverStateChanged notification (server state protocol,
+// https://github.com/tagawa0525/lsp-det).
+type ServerState struct {
+	// Health is "ok", "warning" or "error".
+	Health string `json:"health"`
+	// Readiness is "initializing", "indexing" or "ready".
+	Readiness string `json:"readiness"`
+	// Message explains a health that is not "ok".
+	Message string `json:"message,omitempty"`
+}
+
+// ServerStateProvider is implemented by servers that answer
+// experimental/serverState, which is not part of the LSP schema and is
+// therefore not dispatched by the generated code.
+type ServerStateProvider interface {
+	ServerState(ctx context.Context) (any, error)
+}
+
+const (
+	serverStateMethod        = "experimental/serverState"
+	serverStateChangedMethod = "experimental/serverStateChanged"
+)
+
+// NotifyServerStateChanged sends experimental/serverStateChanged to the client.
+func NotifyServerStateChanged(ctx context.Context, client Client, state *ServerState) error {
+	c, ok := client.(*clientDispatcher)
+	if !ok {
+		return fmt.Errorf("client %T cannot send %s", client, serverStateChangedMethod)
+	}
+	return c.sender.Notify(ctx, serverStateChangedMethod, state)
+}
+
 func ServerHandler(server Server, handler jsonrpc2.Handler) jsonrpc2.Handler {
 	return func(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 		if ctx.Err() != nil {
 			ctx := context.WithoutCancel(ctx)
 			return reply(ctx, nil, RequestCancelledError)
+		}
+		if req.Method() == serverStateMethod {
+			if p, ok := server.(ServerStateProvider); ok {
+				res, err := p.ServerState(ctx)
+				return reply(ctx, res, err)
+			}
 		}
 		handled, err := serverDispatch(ctx, server, reply, req)
 		if handled || err != nil {
@@ -166,6 +205,11 @@ func ServerHandlerV2(server Server) jsonrpc2_v2.Handler {
 	return jsonrpc2_v2.HandlerFunc(func(ctx context.Context, req *jsonrpc2_v2.Request) (any, error) {
 		if ctx.Err() != nil {
 			return nil, RequestCancelledErrorV2
+		}
+		if req.Method == serverStateMethod {
+			if p, ok := server.(ServerStateProvider); ok {
+				return p.ServerState(ctx)
+			}
 		}
 		req1 := req2to1(req)
 		var (

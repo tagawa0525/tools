@@ -129,6 +129,10 @@ type server struct {
 	criticalErrorStatusMu sync.Mutex
 	criticalErrorStatus   *progress.WorkDone
 
+	// serverState tracks the values of the server state protocol
+	// (experimental/serverState); see server_state.go.
+	serverState serverStateProtocol
+
 	// Track an ongoing CPU profile created with the StartProfile command and
 	// terminated with the StopProfile command.
 	ongoingProfileMu sync.Mutex
