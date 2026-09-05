@@ -41,8 +41,19 @@ type serverStateProtocol struct {
 }
 
 // serverStateCapability is the experimental server capability declared in
-// the InitializeResult.
-var serverStateCapability = map[string]bool{"coverage": true, "freshness": true}
+// the InitializeResult. The guarantees name what is missing from the ideal:
+// workspace/symbol is capped at maxSymbols (golang/workspace_symbol.go) and
+// the cap is declared; created, changed and deleted files are all folded in
+// synchronously when the client reports them.
+var serverStateCapability = map[string]any{
+	"coverage": map[string]any{
+		"scope":      "workspace",
+		"incomplete": map[string]int{"workspace/symbol": 100},
+	},
+	"freshness": map[string]any{
+		"fileChanges": []string{"Created", "Changed", "Deleted"},
+	},
+}
 
 // clientWantsServerState reports whether the client declared
 // experimental.serverState in its capabilities.
